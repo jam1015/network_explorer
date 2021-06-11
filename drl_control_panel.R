@@ -34,7 +34,6 @@ exp_file <-  "BRCA_TCGA_Lee_exp.RDS"
 net_file <-  "BRCA_TCGA_Lee_net.RDS"
 drl_options <- drl_defaults$default
 #default, coarsen, coarsest, refine, final
-#could add some things here for another layout algorithm
 layout_parameters <- list(
   drl =                   list(
     use.seed = FALSE,
