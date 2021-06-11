@@ -20,8 +20,8 @@ load_data <- function(dc_in,
   act <- readRDS(file.path(base_dir,data_dir, act_file))
   exp <- readRDS( file.path(base_dir,data_dir, exp_file))
   net <- readRDS( file.path(base_dir,data_dir, net_file)) %>% as_tibble()
-  
-  
+ #######adding a comment 
+ #assiging main data 
   dc_in$data$input$activity <- act
   dc_in$data$input$expression <- exp
   dc_in$data$input$network_table <- net
