@@ -1,3 +1,4 @@
+#adding comment
 setwd("~/Documents/R/netbid_app/netbid_analysis_pipeline_lite/")
 library(shiny)
 library(shinycssloaders)
@@ -133,9 +134,6 @@ server <- function(input, output, session) {
   output$graph_layout_controller <- renderPlot(plots_out$plot_used)
   output$graph_layout <- renderPlot(plots_out$plot_used +   coord_cartesian(xlim = ranges2$x, ylim = ranges2$y ))
   
-
-  
-  
   dc_layout_gg_forced <- reactive({ #a reactive that just makes a ggplot layout of the clustered output with forcing of hard clustering
     dc_used <- dc_cluster() 
     nodes <- dc_used$network %>% activate(nodes) %>% as_tibble()
@@ -188,8 +186,8 @@ server <- function(input, output, session) {
       
       tidy_activity <-    dc$network %>% as_tibble() %>% full_join(tidy_activity, by = "id")
       
-      dc_used$data$input$tidy_activity_long <- tidy_activity
-      dc_used
+      #dc_used$data$input$tidy_activity_long <- tidy_activity
+      #dc_used
     }
   )
   
