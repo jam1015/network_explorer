@@ -74,8 +74,11 @@ server <- function(input, output, session) {
   
   dc_parameters <- reactive( # just an empty data container that has the parameters
     {
-     #
+      #
       dc_used <- dc    
+      choices_used <- unique(dc_used$data$input$sample_info$sample_type)
+        updateSelectInput(inputId = "numerator", choices = choices_used) 
+        updateSelectInput(inputId = "denominator", choices = choices_used) 
       dc_used$data$input$sample_info <- dc_used$data$input$sample_info %>%
         tidyr::unite("sample_type",Met.Site,Source,sep = " ")
       dc_used
@@ -130,8 +133,8 @@ server <- function(input, output, session) {
       theme_prism() + geom_point(color = "black", alpha = .25, size = .5) + 
       scale_color_manual(values = categorical_colors)# + theme(aspect.ratio = 1)
     return(gg_raw)
-#    dc_used$data$output$gg_layout <- gg_raw
-#    dc_used
+    #    dc_used$data$output$gg_layout <- gg_raw
+    #    dc_used
   }
   )
   #------------------------- HERE IS THE FIRST ACTUAL DRAWING of INPUT -----
@@ -147,7 +150,7 @@ server <- function(input, output, session) {
     
     plots_out$plot_used})
   output$graph_layout <- renderPlot({
-                                    plots_out$plot_used +   coord_cartesian(xlim = ranges2$x, ylim = ranges2$y )})
+    plots_out$plot_used +   coord_cartesian(xlim = ranges2$x, ylim = ranges2$y )})
   
   dc_layout_gg_forced <- reactive({ #a reactive that just makes a ggplot layout of the clustered output with forcing of hard clustering
     dc_used <- dc_cluster() 
@@ -177,18 +180,18 @@ server <- function(input, output, session) {
   
   observeEvent(input$run_cluster,{
     if(input$force_hard_cluster){
-     plots_out$plot_used <- dc_layout_gg_forced()
+      plots_out$plot_used <- dc_layout_gg_forced()
     } else{
-     plots_out$plot_used <-  dc_layout_gg_natural()
+      plots_out$plot_used <-  dc_layout_gg_natural()
     }
   }
   )
   
   
-         # reactive that returns a tidy activity dataframe
+  # reactive that returns a tidy activity dataframe
   activity_dc_long <- reactive(
     {
-      
+      #browser()
       dc_used <- dc_layout()
       
       tidy_activity <- dc_used$data$input$activity %>% exprs() %>%
@@ -212,14 +215,14 @@ server <- function(input, output, session) {
   activity_dc_wide <- reactive(
     {
       #
-  #    dc_used <- activity_dc_long()
+      #    dc_used <- activity_dc_long()
       
       tidy_activity <- activity_dc_long()# dc_used$data$input$tidy_activity_long
       
       tidy_activity_wide <- tidy_activity %>% filter(!is.na(activity)) %>%  group_by(id,sample_type,type) %>%
         summarize(activity = mean(activity,na.rm = TRUE)) %>% 
         pivot_wider(names_from = sample_type, values_from = activity) 
-     tidy_activity_wide
+      tidy_activity_wide
       #dc_used$data$input$tidy_activity_wide <- tidy_activity_wide
       #dc_used
     }
@@ -241,7 +244,7 @@ server <- function(input, output, session) {
   })
   
   scale_turbo <- reactive({
-  scale_color_gradientn(colors =  viridis::viridis_pal(option = "turbo", begin = 0, end = 1)(1000), limits = c(input$color_min,input$color_max), na.value = "#787878")
+    scale_color_gradientn(colors =  viridis::viridis_pal(option = "turbo", begin = 0, end = 1)(1000), limits = c(input$color_min,input$color_max), na.value = "#787878")
     
   })
   # reactive that returns plot with activity
@@ -257,66 +260,65 @@ server <- function(input, output, session) {
   )
   
   #    drawing the layout colored by activity----------- 
-  observeEvent( input$layout_graph,
-               {
-                 output$colored_graph_layout <- renderPlot(
-                 expr = { 
-                   gg <- dc_layout_gg_activity()
-                   x_limit <- ranges2$x
-                   y_limit <- ranges2$y
-                   gg +  coord_cartesian(xlim = x_limit, ylim = y_limit )
-                 }
-               )
-               }
-  )
+  activity_layout <- eventReactive(input$layout_graph, {
+   #browser() 
+    gg <- dc_layout_gg_activity()
+    x_limit <- ranges2$x
+    y_limit <- ranges2$y
+    gg +  coord_cartesian(xlim = x_limit, ylim = y_limit )
+  })
+  
+  
+  output$colored_graph_layout <- renderPlot(activity_layout())
   
   observeEvent(input$run_cluster,{
     output$beeswarm_plot <- renderPlot(
       expr = { 
         
         plot_activity <- activity_dc_wide_joined() %>% dplyr::filter(Cluster != 0)# %>%     mutate(Cluster = factor(Cluster))
-      
-         plot_activity %>% ggplot(aes(x = factor(Cluster), y = differential_activity)) + geom_boxplot(outlier.shape = NA, aes( group = factor(Cluster))) + ggbeeswarm::geom_quasirandom(size = .25, alpha = .5,aes(color = differential_activity)) + scale_turbo() +
-         coord_cartesian(xlim = ranges$x, ylim = ranges$y, expand = FALSE) + theme_prism()
-
+        
+        plot_activity %>% ggplot(aes(x = factor(Cluster), y = differential_activity)) + geom_boxplot(outlier.shape = NA, aes( group = factor(Cluster))) + ggbeeswarm::geom_quasirandom(size = .25, alpha = .5,aes(color = differential_activity)) + scale_turbo() +
+          coord_cartesian(xlim = ranges$x, ylim = ranges$y, expand = FALSE) + theme_prism()
+        
       }
     )
     
   })
   
+
   
-  #drawing the numerator for the color control
-  observeEvent(activity_dc_wide(),{
-    
-    freezeReactiveValue(input,"numerator")
-    choices_used <- unique(dc_layout()$data$input$sample_info$sample_type)
-    updateSelectInput(inputId = "numerator", choices = choices_used) 
-  }
-  )
-  #drawing the denominator for the color control
-  observeEvent(activity_dc_wide(),{
-    
-    freezeReactiveValue(input,"denominator")
-    choices_used <- unique(dc_layout()$data$input$sample_info$sample_type)
-    updateSelectInput(inputId = "denominator", choices = choices_used) 
-  }
-  )
-  
+  # #drawing the numerator for the color control
+  # observeEvent(activity_dc_wide(),{
+  #   
+  #   #freezeReactiveValue(input,"numerator")
+  #   choices_used <- unique(dc_layout()$data$input$sample_info$sample_type)
+  #   updateSelectInput(inputId = "numerator", choices = choices_used) 
+  # }, priority = 1000
+  # )
+  # #drawing the denominator for the color control
+  # observeEvent( activity_dc_wide(), {
+  #   
+  #   #freezeReactiveValue(input,"denominator")
+  #   choices_used <- unique(dc_layout()$data$input$sample_info$sample_type)
+  #   updateSelectInput(inputId = "denominator", choices = choices_used) 
+  # }, priority = 1000
+  # )
+  # 
   
   ranges <- reactiveValues(y = NULL) # the place where we define the zoom control for the activity plot
   observeEvent(input$plot1_dblclick, {
     
     brush <- input$plot1_brush
     if (!is.null(brush)) {
-
+      
       ranges$y <- c(brush$ymin, brush$ymax)
-
+      
     } else {
-
+      
       ranges$y <- NULL
     }
   })
-
+  
   
   #the code below deals with the zooming options for the plot
   ranges2 <- reactiveValues(x = NULL, y = NULL)
