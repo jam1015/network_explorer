@@ -76,7 +76,7 @@ server <- function(input, output, session) {
     {
       #
       dc_used <- dc    
-    
+      
       dc_used$data$input$sample_info <- dc_used$data$input$sample_info %>%
         tidyr::unite("sample_type",Met.Site,Source,sep = " ")
       dc_used
@@ -87,7 +87,7 @@ server <- function(input, output, session) {
     {
       #
       dc_used <- dc_parameters()
-     
+      
       sample_percentage <- input$filter_percentage
       nodes <- dc_used$network %>% activate(nodes) 
       n_points <- dim(as_tibble(nodes))[1]
@@ -100,9 +100,9 @@ server <- function(input, output, session) {
   
   dc_layout_reactive <- reactive({
     #
-    dc_filtered()}) #will eventually run the actual layout
+    dc_filtered()
+  }) #will eventually run the actual layout
   
-  activity_plot_trigger <- reactive(list(input$run_cluster,input$layout_graph))
   
   dc_layout <- eventReactive(eventExpr = input$layout_graph,
                              {
@@ -135,21 +135,8 @@ server <- function(input, output, session) {
     #    dc_used
   }
   )
-  #------------------------- HERE IS THE FIRST ACTUAL DRAWING of INPUT -----
-  # draiwng the  cntoroller for raw layout -------
-  plots_out <- reactiveValues(plot_used = NULL)
   
-  observeEvent(input$layout_graph ,{
-    
-    plots_out$plot_used <- dc_layout_gg_raw()#$data$output$gg_layout
-    
-  })
-  output$graph_layout_controller <- renderPlot({
-    
-    plots_out$plot_used})
-  output$graph_layout <- renderPlot({
-    plots_out$plot_used +   coord_cartesian(xlim = ranges2$x, ylim = ranges2$y )})
-  
+  #starting the making of the clustered graphs -------------- 
   dc_layout_gg_forced <- reactive({ #a reactive that just makes a ggplot layout of the clustered output with forcing of hard clustering
     dc_used <- dc_cluster() 
     nodes <- dc_used$network %>% activate(nodes) %>% as_tibble()
@@ -172,6 +159,22 @@ server <- function(input, output, session) {
     gg_natural
   }
   )
+  
+  #------------------------- HERE IS THE FIRST ACTUAL DRAWING of INPUT -----
+  # draiwng the  cntoroller for raw layout -------
+  plots_out <- reactiveValues(plot_used = NULL)
+  
+  observeEvent(input$layout_graph ,{ 
+    
+    plots_out$plot_used <- dc_layout_gg_raw()#$data$output$gg_layout
+    
+  })
+  
+  output$graph_layout <- renderPlot({#this one is the main plot
+    plots_out$plot_used +   coord_cartesian(xlim = ranges2$x, ylim = ranges2$y )})
+  
+  output$graph_layout_controller <- renderPlot({ #this you can drag around on to move the cursor
+    plots_out$plot_used})
   
   #SECOND ACTUAL DRAWING ---------------------------
   # drawing the controller for the clustered layout  ------
@@ -248,11 +251,9 @@ server <- function(input, output, session) {
   })
   # reactive that returns plot with activity
   dc_layout_gg_activity <- reactive({
-    
     #here is where we filter on activity type 
     activity_table <-  activity_dc_wide_joined()
     gg_activity <- activity_table %>% ggplot(aes(x = x, y = y, color = differential_activity)) + geom_point(size = 1,alpha = .95) +
-      scale_turbo() + 
       theme_prism()
     gg_activity
   }
@@ -260,16 +261,16 @@ server <- function(input, output, session) {
   
   #    drawing the layout colored by activity----------- 
   activity_layout <- eventReactive(input$layout_graph, {
-    
-    
     gg <- dc_layout_gg_activity()
     x_limit <- ranges2$x
     y_limit <- ranges2$y
     gg +  coord_cartesian(xlim = x_limit, ylim = y_limit )
   })
   
-  
-  output$colored_graph_layout <- renderPlot(activity_layout())
+  activity_layout_colored <- reactive(
+    {activity_layout() + scale_turbo()  }
+  )
+  output$colored_graph_layout <- renderPlot(activity_layout_colored())
   
   observeEvent(input$run_cluster,{
     output$beeswarm_plot <- renderPlot(
@@ -286,10 +287,10 @@ server <- function(input, output, session) {
   })
   
   observeEvent(dc_parameters(),{
-  choices_used <- unique(dc_parameters()$data$input$sample_info$sample_type)
-  updateSelectInput(inputId = "numerator", choices = choices_used) 
-  updateSelectInput(inputId = "denominator", choices = choices_used) 
-})
+    choices_used <- unique(dc_parameters()$data$input$sample_info$sample_type)
+    updateSelectInput(inputId = "numerator", choices = choices_used) 
+    updateSelectInput(inputId = "denominator", choices = choices_used) 
+  })
   
   # #drawing the numerator for the color control
   # observeEvent(activity_dc_wide(),{
