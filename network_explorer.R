@@ -76,9 +76,7 @@ server <- function(input, output, session) {
     {
       #
       dc_used <- dc    
-      choices_used <- unique(dc_used$data$input$sample_info$sample_type)
-        updateSelectInput(inputId = "numerator", choices = choices_used) 
-        updateSelectInput(inputId = "denominator", choices = choices_used) 
+    
       dc_used$data$input$sample_info <- dc_used$data$input$sample_info %>%
         tidyr::unite("sample_type",Met.Site,Source,sep = " ")
       dc_used
@@ -89,7 +87,7 @@ server <- function(input, output, session) {
     {
       #
       dc_used <- dc_parameters()
-      
+     
       sample_percentage <- input$filter_percentage
       nodes <- dc_used$network %>% activate(nodes) 
       n_points <- dim(as_tibble(nodes))[1]
@@ -191,7 +189,7 @@ server <- function(input, output, session) {
   # reactive that returns a tidy activity dataframe
   activity_dc_long <- reactive(
     {
-      #browser()
+      
       dc_used <- dc_layout()
       
       tidy_activity <- dc_used$data$input$activity %>% exprs() %>%
@@ -235,8 +233,9 @@ server <- function(input, output, session) {
     
     activity_table <- tidy_activity_wide %>% dplyr::filter(type %in% input$activity_type)
     activity_table <- activity_table %>% mutate(differential_activity = .data[[input$numerator]]-.data[[input$denominator]]) %>% dplyr::filter(!is.na(differential_activity))
+    
     activity_table <- activity_table %>% dplyr::filter(!is.na(differential_activity))
-    nodes <- dc_cluster()$network %>% activate(nodes) %>% as_tibble() 
+    nodes <- dc_layout()$network %>% activate(nodes) %>% as_tibble() 
     
     
     activity_table <-  activity_table %>% full_join(nodes, by = "id") %>% dplyr::filter(!is.na(differential_activity))
@@ -261,7 +260,8 @@ server <- function(input, output, session) {
   
   #    drawing the layout colored by activity----------- 
   activity_layout <- eventReactive(input$layout_graph, {
-   #browser() 
+    
+    
     gg <- dc_layout_gg_activity()
     x_limit <- ranges2$x
     y_limit <- ranges2$y
@@ -285,7 +285,11 @@ server <- function(input, output, session) {
     
   })
   
-
+  observeEvent(dc_parameters(),{
+  choices_used <- unique(dc_parameters()$data$input$sample_info$sample_type)
+  updateSelectInput(inputId = "numerator", choices = choices_used) 
+  updateSelectInput(inputId = "denominator", choices = choices_used) 
+})
   
   # #drawing the numerator for the color control
   # observeEvent(activity_dc_wide(),{
@@ -303,7 +307,6 @@ server <- function(input, output, session) {
   #   updateSelectInput(inputId = "denominator", choices = choices_used) 
   # }, priority = 1000
   # )
-  # 
   
   ranges <- reactiveValues(y = NULL) # the place where we define the zoom control for the activity plot
   observeEvent(input$plot1_dblclick, {
