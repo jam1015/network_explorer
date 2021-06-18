@@ -1,8 +1,5 @@
-activity_dc_long <- reactive(
-	{
-		
-		dc_used <- dc_layout()
-		
+activity_dc_long_fun <- function(dc_used){
+	
 		tidy_activity <- dc_used$data$input$activity %>% exprs() %>%
 			as_tibble(rownames = "id") %>% 
 			pivot_longer(cols = -id, names_to = "sample", values_to = "activity") %>%
@@ -13,42 +10,36 @@ activity_dc_long <- reactive(
 		tidy_activity <- tidy_activity %>%
 			full_join(samples_to_join, by = "sample")  
 		
-		tidy_activity <-    dc$network %>% as_tibble() %>% full_join(tidy_activity, by = "id")
+		tidy_activity <-    dc_used$network %>% as_tibble() %>% full_join(tidy_activity, by = "id")
 		
 		#dc_used$data$input$tidy_activity_long <- tidy_activity
 		#dc_used
 		tidy_activity
-	}
-)
+	
+}
 
-activity_dc_wide <- reactive(
-	{
-		#
-		#    dc_used <- activity_dc_long()
+
+	activity_dc_wide_fun <- function(tidy_activity){
 		
-		tidy_activity <- activity_dc_long()# dc_used$data$input$tidy_activity_long
-		
-		tidy_activity_wide <- tidy_activity %>% filter(!is.na(activity)) %>%  group_by(id,sample_type,type) %>%
+		tidy_activity_wide_out <- tidy_activity %>% filter(!is.na(activity)) %>%  group_by(id,sample_type,type) %>%
 			summarize(activity = mean(activity,na.rm = TRUE)) %>% 
 			pivot_wider(names_from = sample_type, values_from = activity) 
-		tidy_activity_wide
-		#dc_used$data$input$tidy_activity_wide <- tidy_activity_wide
-		#dc_used
+		
+		tidy_activity_wide_out
+		
 	}
-)
+	
 
-activity_dc_wide_joined <- reactive({
-	
-	tidy_activity_wide <-  activity_dc_wide()  
-	#here is where we filter on activity type 
-	
-	activity_table <- tidy_activity_wide %>% dplyr::filter(type %in% input$activity_type)
-	activity_table <- activity_table %>% mutate(differential_activity = .data[[input$numerator]]-.data[[input$denominator]]) %>% dplyr::filter(!is.na(differential_activity))
+activity_dc_wide_joined_fun <- function(tidy_activity_wide, nodes, activity_type,numerator, denominator){
+
+	activity_table <- tidy_activity_wide %>% dplyr::filter(type %in% activity_type)
+	activity_table <- activity_table %>% mutate(differential_activity = .data[[numerator]]-.data[[denominator]]) %>% dplyr::filter(!is.na(differential_activity))
 	
 	activity_table <- activity_table %>% dplyr::filter(!is.na(differential_activity))
-	nodes <- dc_layout()$network %>% activate(nodes) %>% as_tibble() 
+	nodes <- nodes %>% activate(nodes) %>% as_tibble() 
 	
 	
 	activity_table <-  activity_table %>% full_join(nodes, by = "id") %>% dplyr::filter(!is.na(differential_activity))
 	activity_table
-})
+	
+}

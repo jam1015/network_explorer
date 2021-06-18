@@ -71,6 +71,8 @@ ui <- fluidPage(
 
 
 server <- function(input, output, session) {
+  #can try to get rid of all the dcs that are getting passed around, but I mightbe limited
+  # by the architecture of the original transformation pipeline
   
   dc_parameters <- reactive( # just an empty data container that has the parameters
     {
@@ -83,24 +85,9 @@ server <- function(input, output, session) {
     }
   )
   
-  dc_filtered <-  reactive(# to try to cut down on the data used
-    {
-      #
-      dc_used <- dc_parameters()
-      
-      sample_percentage <- input$filter_percentage
-      nodes <- dc_used$network %>% activate(nodes) 
-      n_points <- dim(as_tibble(nodes))[1]
-      sample_n <- ceiling((sample_percentage/100)*n_points)
-      indices <- sample.int(n = n_points,size = sample_n)
-      dc_used$network <- dc_used$network %>% activate(nodes) %>% slice(indices)
-      dc_used
-    }    
-  )
   
   dc_layout_reactive <- reactive({
-    #
-    dc_filtered()
+    dc_parameters()
   }) #will eventually run the actual layout
   
   
@@ -112,7 +99,6 @@ server <- function(input, output, session) {
   # RUNS CLUSTERING ON THE LAYOUT -----------------
   dc_cluster <- eventReactive(eventExpr = input$run_cluster,
                               {
-                                
                                 to_clust <- dc_layout_reactive()
                                 to_clust$parameters$cluster_parameters$hdbscan_knn$force_hard_cluster <- input$force_hard_cluster
                                 to_clust$parameters$cluster_parameters$hdbscan_knn$hdbscan_min_pts <- input$hdbscan_n
@@ -122,8 +108,9 @@ server <- function(input, output, session) {
                                 dc_out
                               } 
   )
+  
  # can try to have a single ggplot functin that just reacts to changing data; 
- # then can try to have a particular reactivevalue that updates rather than separate reactives; but this might just be doing what I could o with reactives anyway
+ # then can try to have a particular reactivevalue that updates, rather than separate reactives; but this might just be doing what I could o with reactives anyway
   
   dc_layout_gg_raw <- reactive({ #Called raw because there is no clustering
     
@@ -193,6 +180,32 @@ server <- function(input, output, session) {
   
   # reactive that returns a tidy activity dataframe
 source("./activity_chain.R") #where I have a bunch of activity calculations written
+
+  
+  activity_dc_long <- reactive(
+    {
+      dc_used <- dc_parameters()
+      activity_dc_long_fun(dc_used)
+    }
+  )
+  
+  activity_dc_wide <-  reactive(
+    {
+      tidy_activity <- activity_dc_long()# dc_used$data$input$tidy_activity_long
+       activity_dc_wide_fun(tidy_activity)
+    }
+  )
+  
+  activity_dc_wide_joined <-  reactive({
+    tidy_activity_wide <-  activity_dc_wide()  
+    nodes <- dc_layout()$network
+    activity_dc_wide_joined_fun(tidy_activity_wide = tidy_activity_wide,
+                                nodes = nodes,
+                                activity_type = input$activity_type,
+                                numerator = input$numerator,
+                                denominator = input$denominator)
+    #here is where we filter on activity type 
+  })
   
   scale_turbo <- reactive({
     scale_color_gradientn(colors =  viridis::viridis_pal(option = "turbo", begin = 0, end = 1)(1000), limits = c(input$color_min,input$color_max), na.value = "#787878")
