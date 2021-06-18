@@ -122,6 +122,8 @@ server <- function(input, output, session) {
                                 dc_out
                               } 
   )
+ # can try to have a single ggplot functin that just reacts to changing data; 
+ # then can try to have a particular reactivevalue that updates rather than separate reactives; but this might just be doing what I could o with reactives anyway
   
   dc_layout_gg_raw <- reactive({ #Called raw because there is no clustering
     
@@ -190,60 +192,7 @@ server <- function(input, output, session) {
   
   
   # reactive that returns a tidy activity dataframe
-  activity_dc_long <- reactive(
-    {
-      
-      dc_used <- dc_layout()
-      
-      tidy_activity <- dc_used$data$input$activity %>% exprs() %>%
-        as_tibble(rownames = "id") %>% 
-        pivot_longer(cols = -id, names_to = "sample", values_to = "activity") %>%
-        separate(col = id, sep = "_", into = c("id","type"))  
-      
-      samples_to_join <- dc_used$data$input$sample_info #selecting the sample info to join on
-      
-      tidy_activity <- tidy_activity %>%
-        full_join(samples_to_join, by = "sample")  
-      
-      tidy_activity <-    dc$network %>% as_tibble() %>% full_join(tidy_activity, by = "id")
-      
-      #dc_used$data$input$tidy_activity_long <- tidy_activity
-      #dc_used
-      tidy_activity
-    }
-  )
-  
-  activity_dc_wide <- reactive(
-    {
-      #
-      #    dc_used <- activity_dc_long()
-      
-      tidy_activity <- activity_dc_long()# dc_used$data$input$tidy_activity_long
-      
-      tidy_activity_wide <- tidy_activity %>% filter(!is.na(activity)) %>%  group_by(id,sample_type,type) %>%
-        summarize(activity = mean(activity,na.rm = TRUE)) %>% 
-        pivot_wider(names_from = sample_type, values_from = activity) 
-      tidy_activity_wide
-      #dc_used$data$input$tidy_activity_wide <- tidy_activity_wide
-      #dc_used
-    }
-  )
-  
-  activity_dc_wide_joined <- reactive({
-    
-    tidy_activity_wide <-  activity_dc_wide()  
-    #here is where we filter on activity type 
-    
-    activity_table <- tidy_activity_wide %>% dplyr::filter(type %in% input$activity_type)
-    activity_table <- activity_table %>% mutate(differential_activity = .data[[input$numerator]]-.data[[input$denominator]]) %>% dplyr::filter(!is.na(differential_activity))
-    
-    activity_table <- activity_table %>% dplyr::filter(!is.na(differential_activity))
-    nodes <- dc_layout()$network %>% activate(nodes) %>% as_tibble() 
-    
-    
-    activity_table <-  activity_table %>% full_join(nodes, by = "id") %>% dplyr::filter(!is.na(differential_activity))
-    activity_table
-  })
+source("./activity_chain.R") #where I have a bunch of activity calculations written
   
   scale_turbo <- reactive({
     scale_color_gradientn(colors =  viridis::viridis_pal(option = "turbo", begin = 0, end = 1)(1000), limits = c(input$color_min,input$color_max), na.value = "#787878")
@@ -252,25 +201,18 @@ server <- function(input, output, session) {
   # reactive that returns plot with activity
   dc_layout_gg_activity <- reactive({
     #here is where we filter on activity type 
-    activity_table <-  activity_dc_wide_joined()
-    gg_activity <- activity_table %>% ggplot(aes(x = x, y = y, color = differential_activity)) + geom_point(size = 1,alpha = .95) +
-      theme_prism()
-    gg_activity
-  }
-  )
-  
-  #    drawing the layout colored by activity----------- 
-  activity_layout <- eventReactive(input$layout_graph, {
-    gg <- dc_layout_gg_activity()
+    activity_table <-  activity_dc_wide_joined() #chains back to an eventreactive
     x_limit <- ranges2$x
     y_limit <- ranges2$y
-    gg +  coord_cartesian(xlim = x_limit, ylim = y_limit )
-  })
+    gg_activity <- activity_table %>% ggplot(aes(x = x, y = y, color = differential_activity)) + geom_point(size = 1,alpha = .95) +
+      theme_prism() +   coord_cartesian(xlim = x_limit, ylim = y_limit ) + scale_turbo()
   
-  activity_layout_colored <- reactive(
-    {activity_layout() + scale_turbo()  }
+    gg_activity
+  
+      }
   )
-  output$colored_graph_layout <- renderPlot(activity_layout_colored())
+  
+  output$colored_graph_layout <- renderPlot(dc_layout_gg_activity())
   
   observeEvent(input$run_cluster,{
     output$beeswarm_plot <- renderPlot(
@@ -292,22 +234,6 @@ server <- function(input, output, session) {
     updateSelectInput(inputId = "denominator", choices = choices_used) 
   })
   
-  # #drawing the numerator for the color control
-  # observeEvent(activity_dc_wide(),{
-  #   
-  #   #freezeReactiveValue(input,"numerator")
-  #   choices_used <- unique(dc_layout()$data$input$sample_info$sample_type)
-  #   updateSelectInput(inputId = "numerator", choices = choices_used) 
-  # }, priority = 1000
-  # )
-  # #drawing the denominator for the color control
-  # observeEvent( activity_dc_wide(), {
-  #   
-  #   #freezeReactiveValue(input,"denominator")
-  #   choices_used <- unique(dc_layout()$data$input$sample_info$sample_type)
-  #   updateSelectInput(inputId = "denominator", choices = choices_used) 
-  # }, priority = 1000
-  # )
   
   ranges <- reactiveValues(y = NULL) # the place where we define the zoom control for the activity plot
   observeEvent(input$plot1_dblclick, {
