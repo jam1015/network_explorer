@@ -11,8 +11,8 @@ source("./utility_functions.R")
 source("./drl_helper_functions.R")
 source("./drl_main_functions.R")
 
-dc <- readRDS("./DATA/dc_example_corrected.RDS") #instead of running the pipeline for now
-#dc <- readRDS("./DATA/dc_example_corrected_filtered.RDS") #instead of running the pipeline for now
+#dc <- readRDS("./DATA/dc_example_corrected.RDS") #instead of running the pipeline for now
+dc <- readRDS("./DATA/dc_example_corrected_filtered.RDS") #instead of running the pipeline for now
 
 categorical_colors <- readRDS(categorical_color_file)
 ui <- fluidPage(
@@ -90,8 +90,8 @@ server <- function(input, output, session) {
     dc_parameters()
   }) #will eventually run the actual layout
   
-  
-  dc_layout <- eventReactive(eventExpr = input$layout_graph,
+ #can structure this better so that the clusters/layout are dynamically updated in the same reactive 
+  dc_layout <- eventReactive(eventExpr = list(input$layout_graph, input$run_cluster),
                              {
                                dc_layout_reactive() 
                              }
@@ -182,7 +182,7 @@ server <- function(input, output, session) {
 source("./activity_chain.R") #where I have a bunch of activity calculations written
 
   
-  activity_dc_long <- reactive(
+  activity_long <- reactive(
     {
       dc_used <- dc_parameters()
       activity_dc_long_fun(dc_used)
@@ -191,19 +191,28 @@ source("./activity_chain.R") #where I have a bunch of activity calculations writ
   
   activity_dc_wide <-  reactive(
     {
-      tidy_activity <- activity_dc_long()# dc_used$data$input$tidy_activity_long
+      tidy_activity <- activity_long()# dc_used$data$input$tidy_activity_long
        activity_dc_wide_fun(tidy_activity)
     }
   )
-  
-  activity_dc_wide_joined <-  reactive({
+ activity_wide_filtered <- reactive({
+   
     tidy_activity_wide <-  activity_dc_wide()  
-    nodes <- dc_layout()$network
-    activity_dc_wide_joined_fun(tidy_activity_wide = tidy_activity_wide,
-                                nodes = nodes,
-                                activity_type = input$activity_type,
-                                numerator = input$numerator,
-                                denominator = input$denominator)
+    out <- activity_dc_wide_filtered_fun(tidy_activity_wide = tidy_activity_wide,
+                                  activity_type = input$activity_type,
+                                  numerator = input$numerator,
+                                  denominator = input$denominator
+                                   )
+    out
+ })
+   
+   
+  activity_dc_wide_joined <-  reactive({
+    network <- dc_layout()$network
+    
+    activity_dc_wide_joined_fun(activity_wide_filtered_in = activity_wide_filtered(),
+                                nodes_in = network
+                                )
     #here is where we filter on activity type 
   })
   
@@ -227,23 +236,25 @@ source("./activity_chain.R") #where I have a bunch of activity calculations writ
   
   output$colored_graph_layout <- renderPlot(dc_layout_gg_activity())
   
-  observeEvent(input$run_cluster,{
-    output$beeswarm_plot <- renderPlot(
-      expr = { 
-        
-        plot_activity <- activity_dc_wide_joined() %>% dplyr::filter(Cluster != 0)# %>%     mutate(Cluster = factor(Cluster))
+  
+  beeswarm_plot <- reactive({
+   plot_activity <- activity_dc_wide_joined() %>% #goes back to an event reactive 
+     dplyr::filter(Cluster != 0)# %>%     mutate(Cluster = factor(Cluster))
         
         plot_activity %>% ggplot(aes(x = factor(Cluster), y = differential_activity)) + geom_boxplot(outlier.shape = NA, aes( group = factor(Cluster))) + ggbeeswarm::geom_quasirandom(size = .25, alpha = .5,aes(color = differential_activity)) + scale_turbo() +
           coord_cartesian(xlim = ranges$x, ylim = ranges$y, expand = FALSE) + theme_prism()
         
-      }
-    )
+    })
+  
+  
+    output$beeswarm_plot <- renderPlot(beeswarm_plot())
     
-  })
   
   observeEvent(dc_parameters(),{
     choices_used <- unique(dc_parameters()$data$input$sample_info$sample_type)
+    #freezeReactiveValue(input, "numerator")
     updateSelectInput(inputId = "numerator", choices = choices_used) 
+    #freezeReactiveValue(input, "denominator")
     updateSelectInput(inputId = "denominator", choices = choices_used) 
   })
   

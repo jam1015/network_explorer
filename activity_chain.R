@@ -29,17 +29,20 @@ activity_dc_long_fun <- function(dc_used){
 		
 	}
 	
-
-activity_dc_wide_joined_fun <- function(tidy_activity_wide, nodes, activity_type,numerator, denominator){
-
+activity_dc_wide_filtered_fun <- function(tidy_activity_wide, activity_type, numerator, denominator){
+	
 	activity_table <- tidy_activity_wide %>% dplyr::filter(type %in% activity_type)
 	activity_table <- activity_table %>% mutate(differential_activity = .data[[numerator]]-.data[[denominator]]) %>% dplyr::filter(!is.na(differential_activity))
 	
 	activity_table <- activity_table %>% dplyr::filter(!is.na(differential_activity))
-	nodes <- nodes %>% activate(nodes) %>% as_tibble() 
-	
-	
-	activity_table <-  activity_table %>% full_join(nodes, by = "id") %>% dplyr::filter(!is.na(differential_activity))
 	activity_table
+}
+
+activity_dc_wide_joined_fun <- function(activity_wide_filtered_in, nodes_in ){
+	nodes <- nodes_in %>% activate(nodes) %>% as_tibble() 
+	tidy_activity_wide_filtered <-  activity_wide_filtered_in %>%
+		full_join(nodes, by = "id") %>%
+		dplyr::filter(!is.na(differential_activity))
+	tidy_activity_wide_filtered
 	
 }
