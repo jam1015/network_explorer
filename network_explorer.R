@@ -137,10 +137,14 @@ parameters_used$cluster_parameters$hdbscan_knn$force_hard_cluster <- input$force
   
     gg_raw <- nodes %>% ggplot(aes(x = x, y = y)) + 
       theme_prism() + geom_point(color = Cluster, alpha = .25, size = .5) + 
-      scale_color_manual(values = categorical_colors,)# + theme(aspect.ratio = 1)
+      scale_color_manual(values = categorical_colors, na.value = "black", na.translate  = TRUE)# + theme(aspect.ratio = 1)
     
     return(gg_raw)
   }
+    gg_raw <- nodes %>% ggplot(aes(x = x, y = y)) + 
+      theme_prism() + geom_point(color = "black", alpha = .25, size = .5) + 
+      scale_color_manual(values = categorical_colors)# + theme(aspect.ratio = 1)
+    return(gg_raw)
   
   layout_gg_raw <- reactive({ #Called raw because there is no clustering
     
