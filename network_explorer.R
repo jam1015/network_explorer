@@ -102,11 +102,13 @@ server <- function(input, output, session) {
   cluster <- eventReactive(eventExpr = input$run_cluster,
                            {
                              clust_alg_used_hardcode <- "hdbscan_knn"
-                             dc_parameters_used <- dc_parameters()
-                             dc_parameters_used$parameters$cluster_parameters[[hdbscan_knn]]$force_hard_cluster <- input$force_hard_cluster
-                             dc_parameters_used$parameters$cluster_parameters$hdbscan_knn$hdbscan_min_pts <- input$hdbscan_n
+                             dc_parameters_used <- dc_parameters()$parameters$cluster_parameters[[clust_alg_used_hardcode]]
+                             dc_parameters_used$force_hard_cluster <- input$force_hard_cluster
+                             dc_parameters_used$hdbscan_min_pts <- input$hdbscan_n
+                             browser()
+                             network_used <- layout()
                              cluster_network_igraph_raw(
-                               network = layout()$network,
+                               network = network_used,
                                clust_alg_used = clust_alg_used_hardcode,
                                cluster_parameters = dc_parameters_used
                                )
