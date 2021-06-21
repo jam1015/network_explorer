@@ -106,7 +106,7 @@ server <- function(input, output, session) {
                              dc_parameters_used$parameters$cluster_parameters[[hdbscan_knn]]$force_hard_cluster <- input$force_hard_cluster
                              dc_parameters_used$parameters$cluster_parameters$hdbscan_knn$hdbscan_min_pts <- input$hdbscan_n
                              cluster_network_igraph_raw(
-                               network = layout(),
+                               network = layout()$network,
                                clust_alg_used = clust_alg_used_hardcode,
                                cluster_parameters = dc_parameters_used
                                )
