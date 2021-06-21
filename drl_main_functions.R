@@ -186,7 +186,7 @@ cluster_network_igraph_raw <- function(dc_in,network = dc_in$network, # called r
                                    cluster_parameters = parameters$cluster_parameters[[clust_alg_used]]
 ) {
   network <-   enforce_igraph(network)
-  
+  browser()
   network <- apply_clust_alg_igraph(network = network,clust_alg = clust_alg_used,parameters = cluster_parameters) %>%
     enforce_tidygraph() %>% mutate(Cluster = factor(Cluster))
   

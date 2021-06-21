@@ -105,6 +105,7 @@ server <- function(input, output, session) {
                              parameters_used <- dc_parameters()
                              parameters_used$cluster_parameters$hdbscan_knn$force_hard_cluster <- input$force_hard_cluster
                              parameters_used$cluster_parameters$hdbscan_knn$hdbscan_min_pts <- input$hdbscan_n
+                             browser()
                              cluster_network_igraph_raw(
                                dc_in = parameters_used,
                                network = to_clust
