@@ -15,7 +15,6 @@ cluster_hdbscan_knn <- function(graph,
                                 force_hard_cluster = TRUE,
                                 k_for_knn = 5){ 
   graph <- enforce_igraph(graph)
-#  browser()
   wanted_attributes <-  as.list(coordinate_variables) %>% setNames(coordinate_variables)
   
   

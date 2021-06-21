@@ -101,16 +101,15 @@ server <- function(input, output, session) {
   # RUNS CLUSTERING ON THE LAYOUT -----------------
   cluster <- eventReactive(eventExpr = input$run_cluster,
                            {
-                             to_clust <- layout()
-                             parameters_used <- dc_parameters()
-                             parameters_used$cluster_parameters$hdbscan_knn$force_hard_cluster <- input$force_hard_cluster
-                             parameters_used$cluster_parameters$hdbscan_knn$hdbscan_min_pts <- input$hdbscan_n
-                             browser()
+                             clust_alg_used_hardcode <- "hdbscan_knn"
+                             dc_parameters_used <- dc_parameters()
+                             dc_parameters_used$parameters$cluster_parameters[[hdbscan_knn]]$force_hard_cluster <- input$force_hard_cluster
+                             dc_parameters_used$parameters$cluster_parameters$hdbscan_knn$hdbscan_min_pts <- input$hdbscan_n
                              cluster_network_igraph_raw(
-                               dc_in = parameters_used,
-                               network = to_clust
-                             )
-                             
+                               network = layout(),
+                               clust_alg_used = clust_alg_used_hardcode,
+                               cluster_parameters = dc_parameters_used
+                               )
                              
                            } 
   )
@@ -134,7 +133,6 @@ server <- function(input, output, session) {
     
     df_used <- data_used$network_used #making the eventreactive here
     nodes <- df_used %>% activate(nodes) %>% as_tibble()
-    
     gg_unified <- nodes %>% ggplot(aes(x = x, y = y)) + 
       theme_prism() + geom_point(aes(color = Cluster, ), alpha = .25, size = .5) + 
       scale_color_manual(values = categorical_colors, na.value = "black", na.translate  = TRUE)# + theme(aspect.ratio = 1)

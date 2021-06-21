@@ -20,8 +20,8 @@ load_data <- function(dc_in,
   act <- readRDS(file.path(base_dir,data_dir, act_file))
   exp <- readRDS( file.path(base_dir,data_dir, exp_file))
   net <- readRDS( file.path(base_dir,data_dir, net_file)) %>% as_tibble()
- #######adding a comment 
- #assiging main data 
+  #######adding a comment 
+  #assiging main data 
   dc_in$data$input$activity <- act
   dc_in$data$input$expression <- exp
   dc_in$data$input$network_table <- net
@@ -40,7 +40,7 @@ preprocess_data <- function(dc_in,
                             filter_edge_type = parameters$filter_edge_type,
                             calculate_alternative_distance = parameters$calculate_alternative_distance,
                             act =  dc_in$data$input$activity ,
-                              exp = dc_in$data$input$expression) {
+                            exp = dc_in$data$input$expression) {
   
   
   tidy_activity <- act %>% exprs() %>% as_tibble(rownames = "gene") %>% separate(gene, into = c("sym", "type"), sep = "_") %>% pivot_longer(cols = -c(sym,type), names_to = "sample", values_to = "activity")
@@ -57,13 +57,13 @@ preprocess_data <- function(dc_in,
       summarize_at(c("MI","pearson","spearman","rho","p.value"),mean) %>% #grouping and summarizing multiple edges in genes
       ungroup()
   } else if (filter_edge_type){
-  
+    
     dist_df <-  net %>%  
       separate(source, into = c("sym","type"), sep = "_") %>% 
       filter(type == "TF") %>% 
       dplyr::select(c("source.symbol" ,"target","MI","pearson","spearman","rho","p.value"))
-  
-    } else {
+    
+  } else {
     #browser()
     dist_df <- net %>% dplyr::select(c("source.symbol" ,"target", "MI","pearson","spearman","rho","p.value"))
   }
@@ -169,7 +169,6 @@ cluster_network_igraph <- function(dc_in,network = dc_in$network,
                                    cluster_parameters = parameters$cluster_parameters[[clust_alg_used]]
 ) {
   network <-   enforce_igraph(network)
-  browser()
   dc_in$network <- apply_clust_alg_igraph(network = network,clust_alg = clust_alg_used,parameters = cluster_parameters) %>%
     enforce_tidygraph()
   
@@ -180,16 +179,15 @@ cluster_network_igraph <- function(dc_in,network = dc_in$network,
 
 
 
-cluster_network_igraph_raw <- function(dc_in,network = dc_in$network, # called raw because we are not returning a whole data container but instead the raw dataframe
-                                   parameters = dc_in$parameters,
-                                   clust_alg_used = parameters$cluster_algorithm,
-                                   cluster_parameters = dc_in$parameters$cluster_parameters[[clust_alg_used]]
+cluster_network_igraph_raw <- function(
+                                       network , # called raw because we are not returning a whole data container but instead the raw dataframe
+                                       clust_alg_used ,
+                                                cluster_parameters 
 ) {
   network <-   enforce_igraph(network)
-  browser()
   network <- apply_clust_alg_igraph(network = network,clust_alg = clust_alg_used,parameters = cluster_parameters) %>%
     enforce_tidygraph() %>% mutate(Cluster = factor(Cluster))
   
- return(network) 
+  return(network) 
   
 }
