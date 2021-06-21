@@ -188,7 +188,8 @@ cluster_network_igraph_raw <- function(dc_in,network = dc_in$network, # called r
   network <-   enforce_igraph(network)
   
   network <- apply_clust_alg_igraph(network = network,clust_alg = clust_alg_used,parameters = cluster_parameters) %>%
-    enforce_tidygraph()
+    enforce_tidygraph() %>% mutate(Cluster = factor(Cluster))
+  
  return(network) 
   
 }

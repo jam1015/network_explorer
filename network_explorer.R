@@ -24,8 +24,6 @@ ui <- fluidPage(
     
     # Sidebar with a slider input
     sidebarPanel(
-      sliderInput("filter_percentage", label = h3("Filter Percentage"), min = 0, 
-                  max = 100, value = 100),
       actionButton(inputId = "layout_graph", label = "Run Network Layout"),
       numericInput(inputId = "hdbscan_n", label = "N for hdbscan", min = 5, max = 1000, value = 100, step = 1) ,
       checkboxInput(inputId = "force_hard_cluster", label = "Force Hard Cluster", value = FALSE),
@@ -93,128 +91,75 @@ server <- function(input, output, session) {
     updateSelectInput(inputId = "denominator", choices = choices_used) 
   },priority = 1000000)
   
- #can structure this better so that the clusters/layout are dynamically updated in the same reactive 
-  layout <- eventReactive(eventExpr = list(input$layout_graph, input$run_cluster),
-                             {
-                               dc_parameters()$network %>% activate(nodes) %>% mutate(Cluster = NA)
-                             }
-  )
+  #can structure this better so that the clusters/layout are dynamically updated in the same reactive 
+  layout <- eventReactive(eventExpr = input$layout_graph,
+                          {
+                            out <- dc_parameters()$network %>% activate(nodes) %>% mutate(Cluster = factor(NA))
+                            out
+                          })
+  
   # RUNS CLUSTERING ON THE LAYOUT -----------------
   cluster <- eventReactive(eventExpr = input$run_cluster,
-                              {
-                                to_clust <- layout()
-                                parameters_used <- dc_parameters()
-parameters_used$cluster_parameters$hdbscan_knn$force_hard_cluster <- input$force_hard_cluster
-                                parameters_used$cluster_parameters$hdbscan_knn$hdbscan_min_pts <- input$hdbscan_n
-                                 cluster_network_igraph_raw(
-                                  dc_in = parameters_used,
-                                  network = to_clust
-                                )
-                                
-                                
-                              } 
+                           {
+                             to_clust <- layout()
+                             parameters_used <- dc_parameters()
+                             parameters_used$cluster_parameters$hdbscan_knn$force_hard_cluster <- input$force_hard_cluster
+                             parameters_used$cluster_parameters$hdbscan_knn$hdbscan_min_pts <- input$hdbscan_n
+                             cluster_network_igraph_raw(
+                               dc_in = parameters_used,
+                               network = to_clust
+                             )
+                             
+                             
+                           } 
   )
   
- # can try to have a single ggplot functin that just reacts to changing data; 
- # then can try to have a particular reactivevalue that updates, rather than separate reactives; but this might just be doing what I could o with reactives anyway
+  # can try to have a single ggplot functin that just reacts to changing data; 
+  # then can try to have a particular reactivevalue that updates, rather than separate reactives; but this might just be doing what I could o with reactives anyway
   data_used <- reactiveValues(network_used = NULL)
-
-  observeEvent(input$layout_graph , {
-  data_used$network_used <- layout() 
-  }
+  
+  observeEvent(layout() , {
+    data_used$network_used <- layout() 
+  },priority = 1000
   )
   
-  observeEvent(input$run_cluster , {
-  data_used$network_used <- cluster() 
-  }
+  observeEvent(cluster() , {
+    data_used$network_used <- cluster() 
+  },priority = 1000
   )
   
   
-  layout_gg_unified <- reactive(){
+  layout_gg_unified <- eventReactive(data_used$network_used,{
     
-  df_used <- data_used$network_used
-  nodes <- df_used %>% activate(nodes) %>% as_tibble()
-  
-    gg_raw <- nodes %>% ggplot(aes(x = x, y = y)) + 
-      theme_prism() + geom_point(color = Cluster, alpha = .25, size = .5) + 
+    df_used <- data_used$network_used #making the eventreactive here
+    nodes <- df_used %>% activate(nodes) %>% as_tibble()
+    
+    gg_unified <- nodes %>% ggplot(aes(x = x, y = y)) + 
+      theme_prism() + geom_point(aes(color = Cluster, ), alpha = .25, size = .5) + 
       scale_color_manual(values = categorical_colors, na.value = "black", na.translate  = TRUE)# + theme(aspect.ratio = 1)
     
-    return(gg_raw)
-  }
-    gg_raw <- nodes %>% ggplot(aes(x = x, y = y)) + 
-      theme_prism() + geom_point(color = "black", alpha = .25, size = .5) + 
-      scale_color_manual(values = categorical_colors)# + theme(aspect.ratio = 1)
-    return(gg_raw)
+    return(gg_unified)
+      
+  })
   
-  layout_gg_raw <- reactive({ #Called raw because there is no clustering
-    
-    dc_used <- layout() 
-    nodes <- dc_used$network %>% activate(nodes) %>% as_tibble()
-    gg_raw <- nodes %>% ggplot(aes(x = x, y = y)) + 
-      theme_prism() + geom_point(color = "black", alpha = .25, size = .5) + 
-      scale_color_manual(values = categorical_colors, na.value = "black", na.translate = TRUE)# + theme(aspect.ratio = 1)
-    return(gg_raw)
-    #    dc_used$data$output$gg_layout <- gg_raw
-    #    dc_used
-  }
-  )
-  
-  #starting the making of the clustered graphs -------------- 
-  layout_gg_forced <- reactive({ #a reactive that just makes a ggplot layout of the clustered output with forcing of hard clustering
-    dc_used <- cluster() 
-    nodes <- dc_used$network %>% activate(nodes) %>% as_tibble()
-    gg_forced <- nodes %>% ggplot(aes(x = x, y = y,color = factor(Cluster))) + 
-      theme_prism() + geom_point(size = .5) + 
-      scale_color_manual(values = categorical_colors)#+ theme(aspect.ratio = 1)
-    gg_forced
-  }
-  )
-  
-  layout_gg_natural <- reactive({ #a reactive that just makes a ggplot layout of the clustered output, but no forcing of hard clustering
-    dc_used <- cluster() 
-    nodes <- dc_used$network %>% activate(nodes) %>% as_tibble()
-    
-    no_zero_cluster <- nodes %>% dplyr::filter(Cluster != 0)
-    zero_cluster   <- nodes %>% dplyr::filter(Cluster == 0)
-    gg_natural <- no_zero_cluster %>% ggplot(aes(x = x, y = y, color = factor(Cluster))) + geom_point(size = .5) + 
-      scale_color_manual(values = categorical_colors) + 
-      geom_point(data = zero_cluster, size = .5,alpha = .25) + theme_prism()
-    gg_natural
-  }
-  )
   
   #------------------------- HERE IS THE FIRST ACTUAL DRAWING of INPUT -----
   # draiwng the  cntoroller for raw layout -------
-  plots_out <- reactiveValues(scatter_used = NULL, beeswarm_used = NULL)
-  
-  observeEvent(input$layout_graph ,{ 
-    
-    plots_out$scatter_used <- layout_gg_raw()#$data$output$gg_layout
-    
-  })
   
   output$graph_layout <- renderPlot({#this one is the main plot
-    plots_out$scatter_used +   coord_cartesian(xlim = ranges2$x, ylim = ranges2$y )})
+    layout_gg_unified() +   coord_cartesian(xlim = ranges2$x, ylim = ranges2$y )})
   
   output$graph_layout_controller <- renderPlot({ #this you can drag around on to move the cursor
-    plots_out$scatter_used})
+    layout_gg_unified()})
   
   #SECOND ACTUAL DRAWING ---------------------------
   # drawing the controller for the clustered layout  ------
   
-  observeEvent(input$run_cluster,{
-    if(input$force_hard_cluster){
-      plots_out$scatter_used <- layout_gg_forced()
-    } else{
-      plots_out$scatter_used <-  layout_gg_natural()
-    }
-  }
-  )
   
   
   # reactive that returns a tidy activity dataframe
-source("./activity_chain.R") #where I have a bunch of activity calculations written
-
+  source("./activity_chain.R") #where I have a bunch of activity calculations written
+  
   
   activity_long <- reactive(
     {
@@ -226,27 +171,27 @@ source("./activity_chain.R") #where I have a bunch of activity calculations writ
   activity_dc_wide <-  reactive(
     {
       tidy_activity <- activity_long()# dc_used$data$input$tidy_activity_long
-       activity_dc_wide_fun(tidy_activity)
+      activity_dc_wide_fun(tidy_activity)
     }
   )
- activity_wide_filtered <- reactive({
-   
+  activity_wide_filtered <- reactive({
+    
     tidy_activity_wide <-  activity_dc_wide()  
     out <- activity_dc_wide_filtered_fun(tidy_activity_wide = tidy_activity_wide,
-                                  activity_type = input$activity_type,
-                                  numerator = input$numerator,
-                                  denominator = input$denominator
-                                   )
+                                         activity_type = input$activity_type,
+                                         numerator = input$numerator,
+                                         denominator = input$denominator
+    )
     out
- })
-   
-   
+  })
+  
+  
   activity_dc_wide_joined <-  reactive({
-    network <- layout()$network
+    network <- layout()
     
     activity_dc_wide_joined_fun(activity_wide_filtered_in = activity_wide_filtered(),
                                 nodes_in = network
-                                )
+    )
     #here is where we filter on activity type 
   })
   
@@ -262,26 +207,26 @@ source("./activity_chain.R") #where I have a bunch of activity calculations writ
     y_limit <- ranges2$y
     gg_activity <- activity_table %>% ggplot(aes(x = x, y = y, color = differential_activity)) + geom_point(size = 1,alpha = .95) +
       theme_prism() +   coord_cartesian(xlim = x_limit, ylim = y_limit ) + scale_turbo()
-  
+    
     gg_activity
-  
-      }
+    
+  }
   )
   
   output$colored_graph_layout <- renderPlot(layout_gg_activity())
   
   
   beeswarm_plot <- reactive({
-   plot_activity <- activity_dc_wide_joined() %>% #goes back to an event reactive 
-     dplyr::filter(Cluster != 0)# %>%     mutate(Cluster = factor(Cluster))
-        
-        plot_activity %>% ggplot(aes(x = factor(Cluster), y = differential_activity)) + geom_boxplot(outlier.shape = NA, aes( group = factor(Cluster))) + ggbeeswarm::geom_quasirandom(size = .25, alpha = .5,aes(color = differential_activity)) + scale_turbo() +
-          coord_cartesian(xlim = ranges$x, ylim = ranges$y, expand = FALSE) + theme_prism()
-        
-    })
+    plot_activity <- activity_dc_wide_joined() %>% #goes back to an event reactive 
+      dplyr::filter(Cluster != 0)# %>%     mutate(Cluster = factor(Cluster))
+    
+    plot_activity %>% ggplot(aes(x = factor(Cluster), y = differential_activity)) + geom_boxplot(outlier.shape = NA, aes( group = factor(Cluster))) + ggbeeswarm::geom_quasirandom(size = .25, alpha = .5,aes(color = differential_activity)) + scale_turbo() +
+      coord_cartesian(xlim = ranges$x, ylim = ranges$y, expand = FALSE) + theme_prism()
+    
+  })
   
   
-    output$beeswarm_plot <- renderPlot(beeswarm_plot())
+  output$beeswarm_plot <- renderPlot(beeswarm_plot())
   
   ranges <- reactiveValues(y = NULL) # the place where we define the zoom control for the activity plot
   observeEvent(input$plot1_dblclick, {
