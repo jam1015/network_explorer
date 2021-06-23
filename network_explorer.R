@@ -15,6 +15,12 @@ source("./drl_main_functions.R")
 dc <- readRDS("./DATA/dc_example_corrected_filtered.RDS") #instead of running the pipeline for now
 
 categorical_colors <- readRDS(categorical_color_file)
+main_app <- function(
+  
+  
+)
+
+
 ui <- fluidPage(
   
   # Application title
@@ -46,7 +52,8 @@ ui <- fluidPage(
                       ) 
       ),
       column(6, 
-             plotOutput("graph_layout")
+             plotOutput("graph_layout",dblclick = "graph_dblclick_2", 
+                        brush = brushOpts(id = "layout_brush_2", resetOnNew = TRUE))
       )
       
       ),
@@ -56,9 +63,9 @@ ui <- fluidPage(
                  "colored_graph_layout"
                )),
         column(6, plotOutput("beeswarm_plot",
-                             dblclick = "plot1_dblclick",
+                             dblclick = "beeswarm_dblclick",
                              brush = brushOpts(
-                               id = "plot1_brush",
+                               id = "beewarm_ybrush",
                                resetOnNew = TRUE,direction = "y")
         )
         )
@@ -92,30 +99,32 @@ server <- function(input, output, session) {
   },priority = 1000000)
   
   #can structure this better so that the clusters/layout are dynamically updated in the same reactive 
-  layout <- eventReactive(eventExpr = input$layout_graph,
+  layout_dc <- eventReactive(eventExpr = input$layout_graph,
                           {
-                            out <- dc_parameters()$network %>% activate(nodes) %>% mutate(Cluster = factor(NA))
-                            out
+        
+                            out_dc <- dc_parameters()
+                            out_dc$network <- out_dc$network %>%  activate(nodes) %>% mutate(Cluster = factor(NA))
+                            out_dc
                           })
+  layout <- reactive({
+  layout_dc()$network
+  })
   
   # RUNS CLUSTERING ON THE LAYOUT -----------------
-  cluster <- eventReactive(eventExpr = input$run_cluster,
+  cluster_dc <- eventReactive(eventExpr = input$run_cluster,
                            {
                              clust_alg_used_hardcode <- "hdbscan_knn"
-                             dc_parameters_used <- dc_parameters()$parameters$cluster_parameters[[clust_alg_used_hardcode]]
-                             dc_parameters_used$force_hard_cluster <- input$force_hard_cluster
-                             dc_parameters_used$hdbscan_min_pts <- input$hdbscan_n
-                             browser()
-                             network_used <- layout()
-                             cluster_network_igraph_raw(
-                               network = network_used,
-                               clust_alg_used = clust_alg_used_hardcode,
-                               cluster_parameters = dc_parameters_used
-                               )
+                             to_clust <- layout_dc()
+                             to_clust$parameters$cluster_parameters$hdbscan_knn$force_hard_cluster <- input$force_hard_cluster
+                             to_clust$parameters$cluster_parameters$hdbscan_knn$hdbscan_min_pts <- input$hdbscan_n
+                             to_clust$parameters$cluster_algorithms <- clust_alg_used_hardcode
                              
-                           } 
-  )
+                             dc_out <- cluster_network_igraph(
+                               dc_in = to_clust
+                             )
+                             dc_out})
   
+  cluster <- reactive(cluster_dc()$network)
   # can try to have a single ggplot functin that just reacts to changing data; 
   # then can try to have a particular reactivevalue that updates, rather than separate reactives; but this might just be doing what I could o with reactives anyway
   data_used <- reactiveValues(network_used = NULL)
@@ -136,9 +145,8 @@ server <- function(input, output, session) {
     df_used <- data_used$network_used #making the eventreactive here
     nodes <- df_used %>% activate(nodes) %>% as_tibble()
     gg_unified <- nodes %>% ggplot(aes(x = x, y = y)) + 
-      theme_prism() + geom_point(aes(color = Cluster, ), alpha = .25, size = .5) + 
-      scale_color_manual(values = categorical_colors, na.value = "black", na.translate  = TRUE)# + theme(aspect.ratio = 1)
-    
+      theme_prism() + geom_point(aes(color = Cluster, ), alpha = .333333, size = 1) + 
+      scale_color_manual(values = categorical_colors, na.value = "black", na.translate  = TRUE) + guides(colour = guide_legend(override.aes = list(size=10, alpha = 1)))
     return(gg_unified)
       
   })
@@ -146,14 +154,46 @@ server <- function(input, output, session) {
   
   #------------------------- HERE IS THE FIRST ACTUAL DRAWING of INPUT -----
   # draiwng the  cntoroller for raw layout -------
+  #the code below deals with the zooming options for the plot
+  ranges_used_layout <- reactiveValues(x = NULL, y = NULL)
   
+  observe({ 
+    #here is where we watch to see if they are zooming in with the brush
+    brush <- input$layout_brush
+    if (!is.null(brush)) {
+      ranges_used_layout$x <- c(brush$xmin, brush$xmax)
+      ranges_used_layout$y <- c(brush$ymin, brush$ymax)
+    } else {
+      ranges_used_layout$x <- NULL
+      ranges_used_layout$y <- NULL
+    }
+  })
+
+  ranges_controller_second <- reactiveValues(x = NULL, y = NULL) #the first controller
+  observeEvent(input$graph_dblclick_2,{
+    brush <- input$layout_brush_2
+    brush_previous <- input$layout_brush
+    if (!is.null(brush)) {
+      ranges_used_layout$x <- c(brush$xmin, brush$xmax)
+      ranges_used_layout$y <- c(brush$ymin, brush$ymax)
+      
+    } else {
+      ranges_used_layout$x <- c(brush_previous$xmin, brush_previous$xmax)
+      ranges_used_layout$y <- c(brush_previous$ymin, brush_previous$ymax)
+    }
+  })
+  
+  
+  
+   output$graph_layout_controller <- renderPlot({ #this you can drag around on to move the cursor
+    layout_gg_unified()}) 
+   
   output$graph_layout <- renderPlot({#this one is the main plot
-    layout_gg_unified() +   coord_cartesian(xlim = ranges2$x, ylim = ranges2$y )})
+    layout_gg_unified() +   coord_cartesian(xlim = ranges_used_layout$x, ylim = ranges_used_layout$y )})
   
-  output$graph_layout_controller <- renderPlot({ #this you can drag around on to move the cursor
-    layout_gg_unified()})
+
   
-  #SECOND ACTUAL DRAWING ---------------------------
+  #SECOND ACTUAL DRAWING --------------------------
   # drawing the controller for the clustered layout  ------
   
   
@@ -165,20 +205,20 @@ server <- function(input, output, session) {
   activity_long <- reactive(
     {
       dc_used <- dc_parameters()
-      activity_dc_long_fun(dc_used)
+      activity_long_fun(dc_used)
     }
   )
   
-  activity_dc_wide <-  reactive(
+  activity_wide <-  reactive(
     {
       tidy_activity <- activity_long()# dc_used$data$input$tidy_activity_long
-      activity_dc_wide_fun(tidy_activity)
+      activity_wide_fun(tidy_activity)
     }
   )
   activity_wide_filtered <- reactive({
     
-    tidy_activity_wide <-  activity_dc_wide()  
-    out <- activity_dc_wide_filtered_fun(tidy_activity_wide = tidy_activity_wide,
+    tidy_activity_wide <-  activity_wide()  
+    out <- activity_wide_filtered_fun(tidy_activity_wide = tidy_activity_wide,
                                          activity_type = input$activity_type,
                                          numerator = input$numerator,
                                          denominator = input$denominator
@@ -187,13 +227,19 @@ server <- function(input, output, session) {
   })
   
   
-  activity_dc_wide_joined <-  reactive({
-    network <- layout()
-    
-    activity_dc_wide_joined_fun(activity_wide_filtered_in = activity_wide_filtered(),
-                                nodes_in = network
-    )
+  network_eventreactive <- eventReactive(data_used$network_used,{ #using the eventreactive for the ignore null property. 
+    out <- data_used$network_used                                        #could have use req instead
+    out
+    })
+  
+  activity_wide_joined <-  reactive({
+    network <- network_eventreactive()
+    #browser()
+    out <- activity_wide_joined_fun(activity_wide_filtered_in = activity_wide_filtered(),
+                                nodes_in = network)
+    #browser()
     #here is where we filter on activity type 
+    out
   })
   
   scale_turbo <- reactive({
@@ -203,11 +249,10 @@ server <- function(input, output, session) {
   # reactive that returns plot with activity
   layout_gg_activity <- reactive({
     #here is where we filter on activity type 
-    activity_table <-  activity_dc_wide_joined() #chains back to an eventreactive
-    x_limit <- ranges2$x
-    y_limit <- ranges2$y
+    activity_table <-  activity_wide_joined() #chains back to an eventreactive
+    
     gg_activity <- activity_table %>% ggplot(aes(x = x, y = y, color = differential_activity)) + geom_point(size = 1,alpha = .95) +
-      theme_prism() +   coord_cartesian(xlim = x_limit, ylim = y_limit ) + scale_turbo()
+      theme_prism() +   coord_cartesian(xlim = ranges_used_layout$x, ylim = ranges_used_layout$y ) + scale_turbo()
     
     gg_activity
     
@@ -217,49 +262,44 @@ server <- function(input, output, session) {
   output$colored_graph_layout <- renderPlot(layout_gg_activity())
   
   
-  beeswarm_plot <- reactive({
-    plot_activity <- activity_dc_wide_joined() %>% #goes back to an event reactive 
-      dplyr::filter(Cluster != 0)# %>%     mutate(Cluster = factor(Cluster))
+  beeswarm_yrange <- reactiveValues(y = NULL) # the place where we define the zoom control for the activity plot
+  observeEvent(input$beeswarm_dblclick, {
     
-    plot_activity %>% ggplot(aes(x = factor(Cluster), y = differential_activity)) + geom_boxplot(outlier.shape = NA, aes( group = factor(Cluster))) + ggbeeswarm::geom_quasirandom(size = .25, alpha = .5,aes(color = differential_activity)) + scale_turbo() +
-      coord_cartesian(xlim = ranges$x, ylim = ranges$y, expand = FALSE) + theme_prism()
+    brush <- input$beewarm_ybrush
+    if (!is.null(brush)) {
+      
+      beeswarm_yrange$y <- c(brush$ymin, brush$ymax)
+      
+    } else {
+      
+      beeswarm_yrange$y <- NULL
+    }
+  })
+  
+  beeswarm_plot <- reactive({
+    plot_activity <- activity_wide_joined()  #goes back to an event reactive 
+    #browser()
+    plot_activity <- plot_activity %>%  dplyr::filter((Cluster != "0") | (is.na(Cluster)))# %>%     mutate(Cluster = factor(Cluster))
+    ##browser()
+    
+    plot_activity %>% ggplot(aes(x = Cluster, y = differential_activity)) +
+      geom_boxplot(outlier.shape = NA, aes( group = factor(Cluster))) +
+      ggbeeswarm::geom_quasirandom(size = .25, alpha = .5,aes(color = differential_activity)) + scale_turbo() +
+      coord_cartesian(xlim = beeswarm_yrange$x, ylim = beeswarm_yrange$y, expand = FALSE) +
+      geom_hline(yintercept = 0, linetype = "dotdash") +
+      theme_prism() 
     
   })
   
   
   output$beeswarm_plot <- renderPlot(beeswarm_plot())
   
-  ranges <- reactiveValues(y = NULL) # the place where we define the zoom control for the activity plot
-  observeEvent(input$plot1_dblclick, {
-    
-    brush <- input$plot1_brush
-    if (!is.null(brush)) {
-      
-      ranges$y <- c(brush$ymin, brush$ymax)
-      
-    } else {
-      
-      ranges$y <- NULL
-    }
-  })
   
   
-  #the code below deals with the zooming options for the plot
-  ranges2 <- reactiveValues(x = NULL, y = NULL)
-  observe({ 
-    
-    #here is where we watch to see if they are zooming in with the brush
-    brush <- input$layout_brush
-    if (!is.null(brush)) {
-      ranges2$x <- c(brush$xmin, brush$xmax)
-      ranges2$y <- c(brush$ymin, brush$ymax)
-      
-    } else {
-      ranges2$x <- NULL
-      ranges2$y <- NULL
-    }
-  })
+
+  
+  
   
 }
 
-shinyApp(ui, server)
+shinyApp(ui, server,options = list(port = 7517))

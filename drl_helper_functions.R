@@ -211,9 +211,7 @@ throw_error_graph <- function(graph_in){stop("network layout failed")}
 apply_clust_alg_igraph <- function(network,clust_alg,parameters){#applies an arbitrary function to an igraph
   clust_alg <- str_c("cluster_",clust_alg)
   
-  
-  
-  
+ 
   
   alg_in_igraph <- exists(clust_alg, where = "package:igraph", mode = "function")
   if (alg_in_igraph){
