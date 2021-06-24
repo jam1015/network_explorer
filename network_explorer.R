@@ -25,8 +25,12 @@ side_panel <- function(){
     selectInput(inputId = "numerator",label = "Numerator",choices = NULL),
     selectInput(inputId = "denominator",label = "Denominator",choices = NULL),
     fluidRow(
-      column(width = 6,numericInput(inputId = "color_max", label = "color max", value = .005)),
-    column(width = 6,numericInput(inputId = "color_min", label = "color min", value = -.005))
+      column(width = 6,numericInput(inputId = "color_value_max", label = "color value max", value = .005,step = .001)),
+    column(width = 6,numericInput(inputId = "color_value_min", label = "color value min", value = -.005,step = .001))
+    ),
+    fluidRow(
+      column(width = 6,sliderInput(inputId = "color_scale_max", label = "color scale max", value = 0, min = 0, max = 1)),
+    column(width = 6,sliderInput(inputId = "color_scale_min", label = "color scale min", value = 1, min = 0, max = 1))
     )
   ) 
 }
@@ -296,7 +300,7 @@ server <- function(input, output, session) {
   })
   
   scale_turbo <- reactive({
-    scale_color_gradientn(colors =  viridis::viridis_pal(option = "turbo", begin = 0, end = 1)(1000), limits = c(input$color_min,input$color_max), na.value = "#787878", oob = scales::oob_squish)
+    scale_color_gradientn(colors =  viridis::viridis_pal(option = "turbo", begin = input$color_scale_min, end = input$color_scale_max)(1000), limits = c(input$color_value_min,input$color_value_max), na.value = "#787878", oob = scales::oob_squish)
   })
   
   # reactive that returns plot with activity
