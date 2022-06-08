@@ -1,4 +1,4 @@
-setwd("~/Documents/R/netbid_app/netbid_analysis_pipeline_lite/")
+setwd("~/Documents/network_explorer")
 library(shiny)
 library(shinycssloaders)
 source("./drl_control_panel.R")
@@ -191,7 +191,7 @@ server <- function(input, output, session) {
     nodes <- df_used %>% activate(nodes) %>% as_tibble()
     gg_unified <- nodes %>% ggplot(aes(x = x, y = y)) + 
       theme_prism() + geom_point(aes(color = Cluster, ), alpha = .333333, size = 1) + 
-      scale_color_manual(values = categorical_colors, na.value = "black", na.translate  = TRUE) + guides(colour = guide_legend(override.aes = list(size=10, alpha = 1)))
+      scale_color_manual(values = categorical_colors, na.value = "black", na.translate  = TRUE) + guides(colour = guide_legend(override.aes = list(size=10, alpha = 1))) + theme(legend.position = "none")
     return(gg_unified)
     
   })
