@@ -19,6 +19,8 @@ library(tictoc)
 library(ggraph)
 library(R.utils)
 library(plotly)
+library(clusterProfiler)
+library(enrichplot)
 #base_dir <-  "~/Documents/R/netbid_app/netbid_analysis_pipeline_light/"
 data_dir <- "DATA"
 transformation_factor = 0.00000000001

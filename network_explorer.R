@@ -31,7 +31,9 @@ side_panel <- function(){
     fluidRow(
       column(width = 6,sliderInput(inputId = "color_scale_max", label = "color scale max", value = 0, min = 0, max = 1)),
     column(width = 6,sliderInput(inputId = "color_scale_min", label = "color scale min", value = 1, min = 0, max = 1))
-    )
+    ),
+    selectInput(inputId = "cluster_for_GSEA", label = "Cluster for GSEA", choices = NULL),
+    actionButton(inputId = "run_gsea",label = "Run GSEA")
   ) 
 }
 
@@ -88,6 +90,14 @@ third_row <- function(){
     )
 }
 
+fourth_row <- function(){
+	fluidRow(
+		column(12,
+					 plotOutput(outputId = "gsea_plot")
+		)
+		
+	)
+}
 
 
 main_app <- function() {
@@ -99,7 +109,8 @@ main_app <- function() {
     # Show a plot of the generated distribution
     mainPanel(
       first_row(),
-      second_row()
+      second_row(),
+      fourth_row()
     )
   )
   
@@ -299,6 +310,18 @@ server <- function(input, output, session) {
     out
   })
   
+  
+  observeEvent(activity_wide_joined(),{
+  	freezeReactiveValue(input, "cluster_for_GSEA")
+  	choices_used <- unique(activity_wide_joined()$Cluster) %>% as.integer() %>% sort() %>% as.character()
+  	choices_used <- choices_used[choices_used != "0"]
+  	updateSelectInput(inputId = "cluster_for_GSEA", choices = choices_used) 
+  	
+  }
+  )
+  
+  
+  
   scale_turbo <- reactive({
     scale_color_gradientn(colors =  viridis::viridis_pal(option = "turbo", begin = input$color_scale_min, end = input$color_scale_max)(1000), limits = c(input$color_value_min,input$color_value_max), na.value = "#787878", oob = scales::oob_squish)
   })
@@ -409,7 +432,43 @@ server <- function(input, output, session) {
     }
   })
   
+  gsea_ridgeplot <- eventReactive(input$run_gsea,
+  																{
+  																	activity_wide_nona <- activity_wide_joined()
+  																	entrez_df <- activity_wide_nona %>% dplyr::filter(Cluster == input$cluster_for_GSEA) %>%
+  																		dplyr::select(c(entrezgene_id, differential_activity)) %>% 
+  																		dplyr::filter(!is.na(entrezgene_id)) %>%
+  																		dplyr::group_by(entrezgene_id) %>%
+  																		dplyr::summarize(differential_activity = mean(differential_activity)) %>%
+  																		dplyr::ungroup() %>%
+  																		dplyr::arrange(desc(differential_activity))
+  																	
+  																	
+  																	entrez <- entrez_df %>% pull(entrezgene_id) %>% as.character()
+  																	da <-     entrez_df %>% pull(differential_activity)
+  																	names(da) <- entrez
+  																	entrez <- log2(exp(da))
+  																	shiny::req(entrez)
+  																	
+  																	kk2 <- clusterProfiler::gseKEGG(geneList     = da,
+  																																	organism     = "hsa",
+  																																	nPerm        = 10000,
+  																																	minGSSize    = 3,
+  																																	maxGSSize    = 800,
+  																																	pvalueCutoff = 0.05,
+  																																	pAdjustMethod = "none",
+  																																	keyType       = "ncbi-geneid")
+  																	
+  																	enrichplot::dotplot(kk2, showCategory = 10, title = "Enriched Pathways" , split=".sign") + facet_grid(.~.sign)
+  																	
+  																	
+  																	#ridgeplot(kk2) + labs(x = "enrichment distribution")
+  																	#return(ggplot(head(diamonds), aes(x = x, y = y)) + geom_point())
+  																	
+  																}
+  )
   
+  output$gsea_plot <- renderPlot(gsea_ridgeplot())
 }
 
 shinyApp(ui, server,options = list(port = 7517))

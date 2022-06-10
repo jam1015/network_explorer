@@ -3,8 +3,7 @@ make_plot <- function(in_dr){
   return(layout)
 }
 
-
-
+"%in%" <- function(x, table) base::match(x, table, nomatch = 0) > 0
 cluster_hdbscan_knn <- function(graph,
                                 coordinate_variables = c("x","y"),
                                 id_variable = "id",
